@@ -7,7 +7,7 @@ import tempfile
 import wave
 from typing import Optional
 
-import faster_whisper
+import whisper
 from wyoming.asr import Transcribe, Transcript
 from wyoming.audio import AudioChunk, AudioStop
 from wyoming.event import Event
@@ -24,7 +24,7 @@ class FasterWhisperEventHandler(AsyncEventHandler):
         self,
         wyoming_info: Info,
         cli_args: argparse.Namespace,
-        model: faster_whisper.WhisperModel,
+        model: "Whisper",
         model_lock: asyncio.Lock,
         *args,
         initial_prompt: Optional[str] = None,
@@ -66,14 +66,15 @@ class FasterWhisperEventHandler(AsyncEventHandler):
             self._wav_file = None
 
             async with self.model_lock:
-                segments, _info = self.model.transcribe(
+                whisper.transcribe(model=self.model, audio=self._wav_path)
+                result = self.model.transcribe(
                     self._wav_path,
                     beam_size=self.cli_args.beam_size,
                     language=self._language,
                     initial_prompt=self.initial_prompt,
                 )
-
-            text = " ".join(segment.text for segment in segments)
+            text = result['text'].strip()
+            # text = " ".join(segment.text for segment in segments)
             _LOGGER.info(text)
 
             await self.write_event(Transcript(text=text).event())

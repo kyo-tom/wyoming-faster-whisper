@@ -5,10 +5,12 @@ import logging
 import re
 from functools import partial
 
-import faster_whisper
+import whisper
+from whisper.tokenizer import LANGUAGES
+
 from wyoming.info import AsrModel, AsrProgram, Attribution, Info
 from wyoming.server import AsyncServer
-
+__package__ = 'wyoming_faster_whisper'
 from . import __version__
 from .handler import FasterWhisperEventHandler
 
@@ -80,12 +82,12 @@ async def main() -> None:
     _LOGGER.debug(args)
 
     model_name = args.model
-    match = re.match(r"^(tiny|base|small|medium)[.-]int8$", args.model)
-    if match:
-        # Original models re-uploaded to huggingface
-        model_size = match.group(1)
-        model_name = f"{model_size}-int8"
-        args.model = f"rhasspy/faster-whisper-{model_name}"
+    # match = re.match(r"^(tiny|base|small|medium)[.-]int8$", args.model)
+    # if match:
+    #     # Original models re-uploaded to huggingface
+    #     model_size = match.group(1)
+    #     model_name = f"{model_size}-int8"
+    #     args.model = f"rhasspy/faster-whisper-{model_name}"
 
     if args.language == "auto":
         # Whisper does not understand "auto"
@@ -111,8 +113,9 @@ async def main() -> None:
                             url="https://huggingface.co/Systran",
                         ),
                         installed=True,
-                        languages=faster_whisper.tokenizer._LANGUAGE_CODES,  # pylint: disable=protected-access
-                        version=faster_whisper.__version__,
+                        # languages=faster_whisper.tokenizer._LANGUAGE_CODES,  # pylint: disable=protected-access
+                        languages=list(LANGUAGES.keys()),
+                        version=whisper.__version__,
                     )
                 ],
             )
@@ -121,12 +124,13 @@ async def main() -> None:
 
     # Load model
     _LOGGER.debug("Loading %s", args.model)
-    whisper_model = faster_whisper.WhisperModel(
-        args.model,
-        download_root=args.download_dir,
-        device=args.device,
-        compute_type=args.compute_type,
-    )
+    whisper_model = whisper.load_model(name=args.model)
+    # whisper_model = faster_whisper.WhisperModel(
+    #     args.model,
+    #     download_root=args.download_dir,
+    #     device=args.device,
+    #     compute_type=args.compute_type,
+    # )
 
     server = AsyncServer.from_uri(args.uri)
     _LOGGER.info("Ready")
@@ -147,7 +151,19 @@ async def main() -> None:
 
 
 def run() -> None:
-    asyncio.run(main())
+    loop = asyncio.get_event_loop()
+    result = loop.run_until_complete(main())
+    loop.close()
+
+    print(result)
+    # def block_forever(signum, frame):
+    #     while True:
+    #         # 什么也不做,只是一直阻塞
+    #         pass
+    #
+    # signal.signal(signal.SIGINT, block_forever)
+    # print(f"Process ID: {os.getpid()}")
+    # signal.pause()
 
 
 if __name__ == "__main__":
